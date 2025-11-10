@@ -3,8 +3,9 @@ fastapi==0.104.1
 uvicorn[standard]==0.24.0
 
 # Database
-sqlalchemy==2.0.23
+SQLAlchemy==2.0.22
 psycopg2-binary==2.9.11 --only-binary=:all:
+alembic>=1.13.2
 
 # Configuration and environment
 pydantic-settings==2.1.0

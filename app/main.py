@@ -5,6 +5,18 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.routes import copilot
 
+from dotenv import load_dotenv
+
+from langsmith import Client
+
+from app.config import settings
+
+load_dotenv()
+
+client = Client(
+    api_key=settings.langsmith_api_key,   # tu key de LangSmith
+)
+
 app = FastAPI(
     title="Restaurant Copilot API",
     description="AI-powered copilot for restaurants and internal Restaurant teams",
@@ -34,3 +46,13 @@ async def root():
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy"}
+
+@app.get("/debug-env")
+def debug_env():
+    import os
+    return {
+        "LANGSMITH_TRACING": os.getenv("LANGSMITH_TRACING"),
+        "LANGSMITH_API_KEY": os.getenv("LANGSMITH_API_KEY"),
+        "LANGSMITH_ENDPOINT": os.getenv("LANGSMITH_ENDPOINT"),
+        "LANGSMITH_PROJECT": os.getenv("LANGSMITH_PROJECT"),
+    }

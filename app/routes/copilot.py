@@ -5,7 +5,10 @@ from pydantic import BaseModel
 
 from app.config import settings
 from app.insights.graph import graph   # <-- importamos tu LangGraph
-                                   # (build_insights_graph())
+
+from langsmith.run_helpers import traceable
+from langsmith import Client
+import os
 
 router = APIRouter(prefix="/ask", tags=["copilot"])
 
@@ -22,38 +25,38 @@ class QueryResponse(BaseModel):
     summary: str
 
 
+@traceable(name="copilot-request")
 @router.post("", response_model=QueryResponse)
 async def ask_question(request: QueryRequest):
-    """
-    Process a natural language query using LangGraph+LangChain.
-
-    Example:
-        "How were sales this weekend compared to last?"
-    """
-
-    if not settings.openai_api_key:
-        raise HTTPException(
-            status_code=500,
-            detail="OpenAI API key not configured. Please set OPENAI_API_KEY in your .env file.",
+    try:
+        result = graph.invoke(
+            {"question": request.query},
+            return_run_tree=True
         )
 
-    try:
-        # 🚀 Ejecutar el workflow de LangGraph
-        state = graph.invoke({"question": request.query})
+        # result SIEMPRE es dict
+        state = result.get("state", result)  # soporta ambas versiones
+        run_tree = result.get("run_tree")    # puede ser None
 
-        summary = state.get("analysis")
         sql = state.get("sql")
         sql_result = state.get("sql_result")
+        summary = state.get("analysis")
 
-        # Convertir en ResponseModel
+        # metadata opcional
+        if run_tree:
+            run_tree.update(
+                metadata={
+                    "sql_query": sql,
+                    "result_count": len(sql_result or []),
+                    "question": request.query,
+                }
+            )
+
         return QueryResponse(
             sql=sql,
             result=sql_result,
-            summary=summary,
+            summary=summary
         )
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error processing query: {str(e)}",
-        )
+        raise HTTPException(500, str(e))

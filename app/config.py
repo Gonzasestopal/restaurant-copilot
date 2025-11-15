@@ -13,9 +13,10 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
 
     # LangChain
-    langchain_tracing_v2: bool = True
-    langchain_api_key: str = ""
-    langchain_project: str = "Restaurant-copilot"
+    langsmith_tracing: bool = True
+    langsmith_api_key: str = ""
+    langsmith_project: str = "Restaurant-copilot"
+    langsmith_endpoint: str
 
     class Config:
         env_file = ".env"

@@ -21,7 +21,6 @@ def build_insights_graph():
     workflow.add_edge("analyze", END)
 
     # Compilar grafo
-    graph = workflow.compile()
-    return graph
+    return workflow.compile(debug=True)
 
 graph = build_insights_graph()

@@ -11,9 +11,20 @@ It connects to the analytics database, runs safe SQL queries, and returns summar
 
 **Example queries**
 
-- “How were sales this weekend compared to last?”
-- “Which branch had the highest average ticket size yesterday?”
-- “Why are printer errors increasing in Roma Norte?”
+- "How were sales this weekend compared to last?"
+- "Which branch had the highest average ticket size yesterday?"
+- "Why are printer errors increasing in Roma Norte?"
+
+### Resultado en LangSmith Dashboard
+
+![LangSmith Dashboard](langsmit.png)
+
+El dashboard muestra todos los traces de las consultas ejecutadas, incluyendo:
+
+- Las consultas SQL generadas
+- Los resultados de las evaluaciones
+- Métricas de rendimiento
+- Metadata asociada a cada request
 
 ---
 
@@ -118,11 +129,62 @@ You can view traces at [smith.langchain.com](https://smith.langchain.com).
 
 ---
 
+## 📊 Dataset Evaluation
+
+The project includes a script to evaluate the copilot's performance using LangSmith datasets. This allows you to test the system against a set of predefined questions and analyze the results.
+
+### What it does
+
+The `run_datasets.py` script:
+
+- Connects to LangSmith and loads a dataset of test questions
+- Sends each question to your local API endpoint (`/ask`)
+- Records all responses and traces in LangSmith for analysis
+- Generates evaluation metrics and comparisons in the LangSmith dashboard
+
+### How to run
+
+1. **Ensure the API is running**:
+
+   ```bash
+   uvicorn app.main:app --reload
+   ```
+
+2. **Update the script** (if needed):
+
+   - Edit `run_datasets.py` and update the `dataset_name` to match your LangSmith dataset
+   - Verify the `API_URL` points to your running API (default: `http://localhost:8000/ask/`)
+
+3. **List available datasets**:
+   The script will print all available datasets when you run it.
+
+4. **Execute the evaluation**:
+
+   ```bash
+   python run_datasets.py
+   ```
+
+5. **View results**:
+   - Check the console output for progress
+   - Visit [smith.langchain.com](https://smith.langchain.com) to see detailed traces and metrics
+   - Results are saved under the project name specified in the script (default: `restaurant-copilot-dataset-1`)
+
+### Creating a dataset
+
+You can create a dataset in LangSmith by uploading a JSONL file (like `dataset.jsonl`) with the format:
+
+```json
+{"inputs": {"question": "¿Qué día tuve más ventas?"}}
+{"inputs": {"question": "¿Cuál fue el ticket promedio esta semana?"}}
+```
+
+---
+
 ## 🧩 Next Steps
 
 - [ ] Add branch/location filtering.
 - [ ] Integrate dashboard visuals (Plotly / Recharts).
-- [ ] Implement LangSmith evaluation datasets.
+- [x] Implement LangSmith evaluation datasets.
 - [ ] Add user feedback loop for reinforcement.
 
 ---

@@ -2,13 +2,11 @@
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+import asyncio
 
-from app.config import settings
 from app.insights.graph import graph   # <-- importamos tu LangGraph
 
 from langsmith.run_helpers import traceable
-from langsmith import Client
-import os
 
 router = APIRouter(prefix="/ask", tags=["copilot"])
 
@@ -29,9 +27,13 @@ class QueryResponse(BaseModel):
 @router.post("", response_model=QueryResponse)
 async def ask_question(request: QueryRequest):
     try:
-        result = graph.invoke(
-            {"question": request.query},
-            return_run_tree=True
+        # Ejecutar con timeout de 120 segundos
+        result = await asyncio.wait_for(
+            asyncio.to_thread(
+                graph.invoke,
+                {"question": request.query}
+            ),
+            timeout=120.0
         )
 
         # result SIEMPRE es dict
@@ -58,5 +60,10 @@ async def ask_question(request: QueryRequest):
             summary=summary
         )
 
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            504,
+            "Request timeout: The query took longer than 120 seconds to process"
+        )
     except Exception as e:
         raise HTTPException(500, str(e))

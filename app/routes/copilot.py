@@ -2,18 +2,12 @@
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from openai import OpenAI
 
 from app.config import settings
+from app.insights.graph import graph   # <-- importamos tu LangGraph
+                                   # (build_insights_graph())
 
 router = APIRouter(prefix="/ask", tags=["copilot"])
-
-
-def get_openai_client():
-    """Get OpenAI client instance"""
-    if not settings.openai_api_key:
-        return None
-    return OpenAI(api_key=settings.openai_api_key)
 
 
 class QueryRequest(BaseModel):
@@ -22,7 +16,7 @@ class QueryRequest(BaseModel):
 
 
 class QueryResponse(BaseModel):
-    """Response model for copilot queries"""
+    """Response model for copilot insights"""
     sql: str | None = None
     result: list[dict] | None = None
     summary: str
@@ -31,46 +25,35 @@ class QueryResponse(BaseModel):
 @router.post("", response_model=QueryResponse)
 async def ask_question(request: QueryRequest):
     """
-    Process a natural language query and return AI-generated insights using ChatGPT
+    Process a natural language query using LangGraph+LangChain.
 
     Example:
         "How were sales this weekend compared to last?"
     """
-    client = get_openai_client()
-    if not client:
+
+    if not settings.openai_api_key:
         raise HTTPException(
             status_code=500,
-            detail="OpenAI API key not configured. Please set OPENAI_API_KEY in your .env file."
+            detail="OpenAI API key not configured. Please set OPENAI_API_KEY in your .env file.",
         )
 
     try:
-        # Simple ChatGPT response
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a helpful restaurant analytics assistant. Answer questions about restaurant operations, sales, and data insights in a clear and concise manner."
-                },
-                {
-                    "role": "user",
-                    "content": request.query
-                }
-            ],
-            temperature=0.7,
-            max_tokens=500
-        )
+        # 🚀 Ejecutar el workflow de LangGraph
+        state = graph.invoke({"question": request.query})
 
-        summary = response.choices[0].message.content
+        summary = state.get("analysis")
+        sql = state.get("sql")
+        sql_result = state.get("sql_result")
 
+        # Convertir en ResponseModel
         return QueryResponse(
-            sql=None,
-            result=None,
-            summary=summary
+            sql=sql,
+            result=sql_result,
+            summary=summary,
         )
 
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Error processing query: {str(e)}"
+            detail=f"Error processing query: {str(e)}",
         )

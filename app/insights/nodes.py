@@ -64,6 +64,108 @@ llm = ChatOpenAI(
 
 
 #
+# --- VALIDATION PROMPT ---
+#
+
+validation_prompt = PromptTemplate.from_template(
+    """
+Eres un guardián que valida preguntas para un sistema de análisis de restaurantes.
+
+Tu trabajo es determinar si una pregunta es:
+1. RELACIONADA AL NEGOCIO: Debe estar relacionada con restaurantes, ventas, pedidos, menú, operaciones, o análisis de datos del negocio.
+2. ESPECÍFICA: Debe ser lo suficientemente específica para generar una consulta SQL útil.
+
+RESPONDE SOLO CON UNA DE ESTAS OPCIONES:
+- "VALID" - si la pregunta es relacionada al negocio y específica
+- "NOT_BUSINESS" - si la pregunta NO está relacionada con restaurantes/negocio (ej: preguntas generales, chistes, preguntas personales, etc.)
+- "TOO_VAGUE" - si la pregunta es demasiado vaga o genérica (ej: "¿qué pasó?", "dame datos", "muéstrame algo")
+
+Ejemplos de preguntas VÁLIDAS:
+- "¿Cuáles fueron las ventas totales este fin de semana?"
+- "¿Qué restaurante tuvo el ticket promedio más alto ayer?"
+- "Muéstrame los items más vendidos este mes"
+- "¿Cuántos pedidos se completaron hoy?"
+
+Ejemplos de preguntas NO VÁLIDAS (NOT_BUSINESS):
+- "¿Cuál es la capital de Francia?"
+- "Cuéntame un chiste"
+- "¿Cómo está el clima?"
+- "¿Qué hora es?"
+
+Ejemplos de preguntas VÁLIDAS pero TOO_VAGUE:
+- "¿Qué pasó?"
+- "Dame información"
+- "Muéstrame datos"
+- "¿Cómo está todo?"
+
+Pregunta a validar:
+{question}
+
+Respuesta (solo una palabra: VALID, NOT_BUSINESS, o TOO_VAGUE):
+"""
+)
+
+validation_chain = validation_prompt | llm | StrOutputParser()
+
+
+def validate_question_node(state: InsightsState) -> InsightsState:
+    """Validate if the question is business-related and specific enough"""
+    question = state.get("question", "").strip()
+
+    if not question:
+        return {
+            **state,
+            "is_valid": False,
+            "rejection_reason": "La pregunta está vacía. Por favor, haz una pregunta específica sobre el negocio del restaurante."
+        }
+
+    # Check if question is too short (likely vague)
+    if len(question.split()) < 3:
+        return {
+            **state,
+            "is_valid": False,
+            "rejection_reason": "La pregunta es demasiado corta o vaga. Por favor, sé más específico sobre qué información necesitas del restaurante."
+        }
+
+    # Use LLM to validate
+    try:
+        validation_result = validation_chain.invoke({"question": question})
+        validation_result = validation_result.strip().upper()
+
+        if validation_result == "VALID":
+            return {**state, "is_valid": True, "rejection_reason": None}
+        elif validation_result == "NOT_BUSINESS":
+            return {
+                **state,
+                "is_valid": False,
+                "rejection_reason": "Lo siento, solo puedo responder preguntas relacionadas con el negocio del restaurante (ventas, pedidos, menú, operaciones, etc.). Por favor, haz una pregunta sobre estos temas."
+            }
+        elif validation_result == "TOO_VAGUE":
+            return {
+                **state,
+                "is_valid": False,
+                "rejection_reason": "Tu pregunta es demasiado vaga. Por favor, sé más específico. Por ejemplo: '¿Cuáles fueron las ventas totales este fin de semana?' o '¿Qué restaurante tuvo más pedidos ayer?'"
+            }
+        else:
+            # If LLM returns something unexpected, default to valid (fail open)
+            return {**state, "is_valid": True, "rejection_reason": None}
+    except Exception as e:
+        # If validation fails, default to valid (fail open)
+        return {**state, "is_valid": True, "rejection_reason": None}
+
+
+def rejection_node(state: InsightsState) -> InsightsState:
+    """Handle rejected questions with a friendly message"""
+    rejection_reason = state.get("rejection_reason", "La pregunta no puede ser procesada.")
+    return {
+        **state,
+        "sql": None,
+        "sql_result": None,
+        "analysis": rejection_reason
+    }
+
+
+#
 # --- SQL GENERATION PROMPT ---
 #
 
